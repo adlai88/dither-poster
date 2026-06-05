@@ -4,10 +4,13 @@ A one-screen, brand-locked poster maker for Simmer feature announcements. Drop a
 image, edit the copy, and it renders a dithered 2-tone poster in the Simmer kit.
 Everything runs in the browser — **the image never leaves your machine**.
 
+**Live:** https://adlai88.github.io/dither-poster/
+
 ## Use it
 
-Open `index.html` in a browser (double-click works — no server, no install, works
-offline). Or serve the folder: `python3 -m http.server` then open `localhost:8000`.
+Use the hosted version above, or run it locally: open `index.html` in a browser
+(double-click works — no server, no install, works offline). Or serve the folder:
+`python3 -m http.server` then open `localhost:8000`.
 
 1. **Drop an image** (or click "Use sample image").
 2. **Drag on the preview** to set the focal point.
