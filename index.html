@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dither Poster — Simmer</title>
+<style>
+  /* ---- Brand fonts (full Geist OTFs: arrows/middot covered) ---- */
+  @font-face{font-family:'Geist';font-weight:400;src:url('fonts/Geist-Regular.otf') format('opentype');}
+  @font-face{font-family:'Geist';font-weight:500;src:url('fonts/Geist-Medium.otf') format('opentype');}
+  @font-face{font-family:'Geist';font-weight:600;src:url('fonts/Geist-SemiBold.otf') format('opentype');}
+  @font-face{font-family:'Geist';font-weight:700;src:url('fonts/Geist-Bold.otf') format('opentype');}
+  @font-face{font-family:'Geist Mono';font-weight:500;src:url('fonts/GeistMono-Medium.otf') format('opentype');}
+  @font-face{font-family:'Geist Mono';font-weight:600;src:url('fonts/GeistMono-SemiBold.otf') format('opentype');}
+  @font-face{font-family:'Geist Pixel';font-weight:400;src:url('fonts/GeistPixel-Square.woff2') format('woff2');}
+
+  /* ---- DESIGN.md tokens (app chrome) ---- */
+  :root{
+    --black:#141414; --surface:#1a1a1a; --elevated:#222; --grid:#333; --border:#3a3a3a;
+    --text:#c9c9c9; --muted:#9a958f; --dim:#6a6862;
+    --blue:#7aa2f7; --green:#9ece6a; --amber:#e0af68;
+    --mono:'Geist Mono',ui-monospace,monospace; --sans:'Geist','Inter',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;}
+  body{background:var(--black);color:var(--text);font-family:var(--sans);font-size:14px;
+       -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;}
+
+  header{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 20px;border-bottom:1px solid var(--grid);background:var(--surface);flex:0 0 auto;}
+  .brand{font-family:var(--mono);font-weight:600;letter-spacing:.04em;color:var(--text);font-size:15px;}
+  .brand .dim{color:var(--dim);}
+  button.dl{font-family:var(--mono);font-weight:600;font-size:13px;background:var(--blue);color:#000;
+    border:0;border-radius:6px;padding:9px 16px;cursor:pointer;}
+  button.dl:hover{background:#fff;}
+
+  main{flex:1 1 auto;display:flex;min-height:0;}
+  .controls{width:380px;flex:0 0 auto;overflow-y:auto;border-right:1px solid var(--grid);
+    background:var(--surface);padding:18px;}
+  .stage{flex:1 1 auto;display:flex;align-items:center;justify-content:center;padding:28px;
+    background:
+      linear-gradient(to right,rgba(51,51,51,.25) 1px,transparent 1px) 0 0/32px 32px,
+      linear-gradient(to bottom,rgba(51,51,51,.25) 1px,transparent 1px) 0 0/32px 32px,
+      var(--black);
+    overflow:auto;}
+  #preview{max-width:100%;max-height:100%;box-shadow:0 0 0 1px var(--grid);cursor:grab;
+    image-rendering:auto;}
+  #preview.dragging{cursor:grabbing;}
+
+  .group{margin-bottom:20px;}
+  .group > label.h{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--dim);margin-bottom:9px;}
+  .row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .row .lbl{width:64px;color:var(--muted);font-size:12px;flex:0 0 auto;}
+  input[type=range]{flex:1;accent-color:var(--blue);}
+  .val{width:34px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text);}
+
+  .seg{display:flex;gap:6px;}
+  .seg button, .swatches button, .ghost{font-family:var(--mono);font-size:12px;cursor:pointer;
+    background:var(--black);color:var(--muted);border:1px solid var(--grid);border-radius:6px;
+    padding:7px 10px;transition:.12s;}
+  .seg button.on{border-color:var(--blue);color:var(--text);}
+  .seg button:hover,.ghost:hover{border-color:var(--border);color:var(--text);}
+
+  .swatches{display:flex;gap:8px;}
+  .swatches button{width:34px;height:34px;padding:0;border-radius:6px;position:relative;}
+  .swatches button.on{box-shadow:0 0 0 2px var(--blue);border-color:transparent;}
+
+  .drop{border:1px dashed var(--grid);border-radius:8px;padding:16px;text-align:center;
+    color:var(--muted);font-size:12px;cursor:pointer;transition:.12s;}
+  .drop:hover,.drop.over{border-color:var(--blue);color:var(--text);background:rgba(122,162,247,.06);}
+
+  .box{border:1px solid var(--grid);border-radius:8px;padding:11px;margin-bottom:10px;background:var(--black);}
+  .box .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .box .name{font-family:var(--mono);font-size:11px;color:var(--dim);}
+  .box .del{color:var(--dim);background:none;border:0;cursor:pointer;font-size:14px;}
+  .box .del:hover{color:#f7768e;}
+  textarea{width:100%;background:var(--surface);color:var(--text);border:1px solid var(--grid);
+    border-radius:6px;padding:8px;font-family:var(--sans);font-size:13px;resize:vertical;min-height:38px;}
+  textarea:focus,select:focus{outline:none;border-color:var(--blue);}
+  .box .meta{display:flex;gap:6px;margin-top:8px;}
+  select,.box .meta input{background:var(--surface);color:var(--text);border:1px solid var(--grid);
+    border-radius:6px;padding:6px;font-family:var(--mono);font-size:11px;}
+  select{flex:1;} .box .meta input{width:56px;}
+  .ghost{width:100%;padding:9px;}
+  .hint{color:var(--dim);font-size:11px;margin-top:6px;line-height:1.4;}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">(&gt;.&lt;) DITHER POSTER <span class="dim">· simmer</span></div>
+  <button class="dl" id="download">Download PNG</button>
+</header>
+<main>
+  <aside class="controls" id="controls">
+    <div class="group">
+      <label class="h">Image</label>
+      <div class="drop" id="drop">Drop an image, or click to choose</div>
+      <input type="file" id="file" accept="image/*" hidden />
+      <button class="ghost" id="useSample" style="margin-top:8px">Use sample image</button>
+      <div class="hint">Drag on the preview to set the focal point. Image stays on your machine — nothing uploads.</div>
+    </div>
+
+    <div class="group">
+      <label class="h">Format</label>
+      <div class="seg" id="format">
+        <button data-fmt="1:1" class="on">1:1</button>
+        <button data-fmt="4:5">4:5</button>
+        <button data-fmt="16:9">16:9</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <label class="h">Palette</label>
+      <div class="swatches" id="palette"></div>
+    </div>
+
+    <div class="group">
+      <label class="h">Image treatment</label>
+      <div class="row"><span class="lbl">Zoom</span><input type="range" id="zoom" min="1" max="20" step="0.5" value="6"><span class="val" id="zoomV">6</span></div>
+      <div class="row"><span class="lbl">Contrast</span><input type="range" id="contrast" min="0.6" max="2.2" step="0.05" value="1.3"><span class="val" id="contrastV">1.3</span></div>
+      <div class="row"><span class="lbl">Dither</span><input type="range" id="cell" min="1" max="5" step="1" value="2"><span class="val" id="cellV">2</span></div>
+    </div>
+
+    <div class="group">
+      <label class="h">Boxes</label>
+      <div id="boxes"></div>
+      <button class="ghost" id="addBox">+ add box</button>
+    </div>
+  </aside>
+
+  <section class="stage">
+    <canvas id="preview"></canvas>
+  </section>
+</main>
+
+<script>
+const PALETTES = {
+  cream: {dark:[47,51,0],   light:[251,255,204], sw:'#fbffcc'},
+  blue:  {dark:[20,20,20],  light:[122,162,247], sw:'#7aa2f7'},
+  green: {dark:[20,20,20],  light:[158,206,106], sw:'#9ece6a'},
+  amber: {dark:[20,20,20],  light:[224,175,104], sw:'#e0af68'},
+  mono:  {dark:[20,20,20],  light:[201,201,201], sw:'#c9c9c9'},
+};
+const FAMILY = {sans:'Geist', mono:'Geist Mono', pixel:'Geist Pixel'};
+const FORMATS = {'1:1':[1080,1080], '4:5':[1080,1350], '16:9':[1600,900]};
+
+// ---- default referral template ----
+const state = {
+  img:null, format:'1:1', palette:'cream', zoom:6, contrast:1.3, cell:2, fx:0.5, fy:0.5,
+  margin:64, padX:26, padY:16, radius:12, lineGap:4,
+  chips:[
+    {text:'(>.<) SIMMER', font:'mono', weight:600, size:30, x:64, y:64},
+    {text:'The referral\nprogram is live', font:'sans', weight:600, size:78, x:64, y:150},
+    {text:'Earn a share of everything your referrals trade, paid out weekly in USD.',
+     font:'sans', weight:500, size:37, maxW:600, x:64, y:404},
+    {text:'Grab your link  →  Dashboard · Earn · Referrals', font:'mono', weight:500, size:28, x:64, y:600},
+  ],
+};
+
+const out = document.createElement('canvas');       // full-res render target
+const octx = out.getContext('2d');
+const preview = document.getElementById('preview');
+const pctx = preview.getContext('2d');
+let chipRects = [];                                  // for hit-testing
+
+// ---------- dither pipeline (port of dither_banner.py) ----------
+function buildBackground(W, H){
+  const tmp = document.createElement('canvas'); tmp.width=W; tmp.height=H;
+  const tctx = tmp.getContext('2d');
+  if(state.img){
+    const iw=state.img.width, ih=state.img.height;
+    const scale=Math.max(W/iw, H/ih)*state.zoom;
+    const dw=iw*scale, dh=ih*scale;
+    const left=Math.max(0,Math.min((dw-W)*state.fx, dw-W));
+    const top =Math.max(0,Math.min((dh-H)*state.fy, dh-H));
+    tctx.drawImage(state.img, -left, -top, dw, dh);
+  } else { tctx.fillStyle='#808080'; tctx.fillRect(0,0,W,H); }
+
+  // grayscale + contrast at full res
+  const full=tctx.getImageData(0,0,W,H), fd=full.data, c=state.contrast;
+  for(let i=0;i<fd.length;i+=4){
+    let g=0.299*fd[i]+0.587*fd[i+1]+0.114*fd[i+2];
+    g=(g-128)*c+128;
+    fd[i]=fd[i+1]=fd[i+2]=g;                          // keep float-ish in 0..255 (clamped on read)
+  }
+  tctx.putImageData(full,0,0);
+
+  // downscale by cell
+  const cell=state.cell, sw=Math.max(1,Math.round(W/cell)), sh=Math.max(1,Math.round(H/cell));
+  const sc=document.createElement('canvas'); sc.width=sw; sc.height=sh;
+  const sctx=sc.getContext('2d'); sctx.imageSmoothingEnabled=true;
+  sctx.drawImage(tmp,0,0,sw,sh);
+
+  // Floyd–Steinberg on grayscale -> 2-tone palette
+  const sd=sctx.getImageData(0,0,sw,sh), d=sd.data;
+  const buf=new Float32Array(sw*sh);
+  for(let p=0,j=0;p<d.length;p+=4,j++) buf[j]=d[p];
+  const {dark,light}=PALETTES[state.palette];
+  for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){
+    const j=y*sw+x, oldv=buf[j], nv=oldv<128?0:255, err=oldv-nv;
+    if(x+1<sw)            buf[j+1]    +=err*7/16;
+    if(y+1<sh){ if(x>0)   buf[j+sw-1] +=err*3/16;
+                          buf[j+sw]   +=err*5/16;
+                if(x+1<sw)buf[j+sw+1] +=err*1/16; }
+    const col=nv?light:dark, k=j*4;
+    d[k]=col[0]; d[k+1]=col[1]; d[k+2]=col[2]; d[k+3]=255;
+  }
+  sctx.putImageData(sd,0,0);
+
+  // nearest-neighbour upscale to full res
+  octx.imageSmoothingEnabled=false;
+  octx.drawImage(sc,0,0,sw,sh,0,0,W,H);
+}
+
+// ---------- chips ----------
+function fontStr(chip){
+  const fam=FAMILY[chip.font]||'Geist';
+  const w=chip.font==='pixel'?400:chip.weight;
+  return `${w} ${chip.size}px '${fam}'`;
+}
+function wrapLines(chip){
+  if(!chip.maxW) return chip.text.split('\n');
+  const lines=[];
+  for(const para of chip.text.split('\n')){
+    let cur='';
+    for(const word of para.split(' ')){
+      const t=(cur+' '+word).trim();
+      if(octx.measureText(t).width<=chip.maxW || !cur) cur=t;
+      else { lines.push(cur); cur=word; }
+    }
+    lines.push(cur);
+  }
+  return lines;
+}
+function drawChips(){
+  chipRects=[];
+  state.chips.forEach((chip,idx)=>{
+    octx.font=fontStr(chip); octx.textBaseline='alphabetic';
+    const lines=wrapLines(chip);
+    const m=octx.measureText('Mg');
+    const asc=m.actualBoundingBoxAscent||chip.size*0.8;
+    const desc=m.actualBoundingBoxDescent||chip.size*0.2;
+    const lineH=asc+desc;
+    const widths=lines.map(l=>octx.measureText(l).width);
+    const tw=Math.max(...widths,0), th=lineH*lines.length+state.lineGap*(lines.length-1);
+    const bw=tw+2*state.padX, bh=th+2*state.padY;
+    // chip
+    octx.fillStyle='#ffffff';
+    roundRect(octx, chip.x, chip.y, bw, bh, state.radius); octx.fill();
+    octx.fillStyle='#000000';
+    let cy=chip.y+state.padY+asc;
+    for(const ln of lines){ octx.fillText(ln, chip.x+state.padX, cy); cy+=lineH+state.lineGap; }
+    chipRects.push({x:chip.x,y:chip.y,w:bw,h:bh,idx});
+  });
+}
+function roundRect(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+
+// ---------- render ----------
+let fontsReady=false;
+function render(){
+  const [W,H]=FORMATS[state.format];
+  out.width=W; out.height=H;
+  buildBackground(W,H);
+  drawChips();
+  // blit to preview scaled to fit stage
+  const stage=preview.parentElement.getBoundingClientRect();
+  const scale=Math.min((stage.width-56)/W,(stage.height-56)/H,1);
+  preview.width=W; preview.height=H;
+  preview.style.width=(W*scale)+'px'; preview.style.height=(H*scale)+'px';
+  pctx.drawImage(out,0,0);
+}
+
+// ---------- UI wiring ----------
+function buildPalette(){
+  const wrap=document.getElementById('palette'); wrap.innerHTML='';
+  Object.entries(PALETTES).forEach(([k,v])=>{
+    const b=document.createElement('button');
+    b.style.background=v.sw; b.title=k; if(k===state.palette)b.className='on';
+    b.onclick=()=>{state.palette=k; buildPalette(); render();};
+    wrap.appendChild(b);
+  });
+}
+function buildBoxes(){
+  const wrap=document.getElementById('boxes'); wrap.innerHTML='';
+  state.chips.forEach((chip,i)=>{
+    const el=document.createElement('div'); el.className='box';
+    el.innerHTML=`
+      <div class="top"><span class="name">Box ${i+1}</span><button class="del" title="delete">✕</button></div>
+      <textarea></textarea>
+      <div class="meta">
+        <select class="font">
+          <option value="sans">Geist Sans</option>
+          <option value="mono">Geist Mono</option>
+          <option value="pixel">Geist Pixel</option>
+        </select>
+        <select class="weight">
+          <option value="400">Regular</option><option value="500">Medium</option>
+          <option value="600">SemiBold</option><option value="700">Bold</option>
+        </select>
+        <input class="size" type="number" min="8" max="200" title="size">
+      </div>`;
+    const ta=el.querySelector('textarea'); ta.value=chip.text;     // value, not innerHTML — no escaping needed
+    ta.oninput=e=>{chip.text=e.target.value; render();};
+    el.querySelector('.size').value=chip.size;
+    const fontSel=el.querySelector('.font'); fontSel.value=chip.font;
+    fontSel.onchange=e=>{chip.font=e.target.value; render();};
+    const wSel=el.querySelector('.weight'); wSel.value=String(chip.weight);
+    wSel.onchange=e=>{chip.weight=+e.target.value; render();};
+    el.querySelector('.size').oninput=e=>{chip.size=+e.target.value||chip.size; render();};
+    el.querySelector('.del').onclick=()=>{state.chips.splice(i,1); buildBoxes(); render();};
+    wrap.appendChild(el);
+  });
+}
+function slider(id,key,fmt){
+  const s=document.getElementById(id), v=document.getElementById(id+'V');
+  s.oninput=()=>{state[key]=parseFloat(s.value); v.textContent=fmt?fmt(s.value):s.value; render();};
+}
+slider('zoom','zoom'); slider('contrast','contrast'); slider('cell','cell');
+
+document.getElementById('format').onclick=e=>{
+  if(e.target.dataset.fmt){
+    state.format=e.target.dataset.fmt;
+    [...e.currentTarget.children].forEach(b=>b.classList.toggle('on',b===e.target));
+    render();
+  }
+};
+document.getElementById('addBox').onclick=()=>{
+  state.chips.push({text:'New box', font:'sans', weight:600, size:40, x:state.margin, y:state.margin});
+  buildBoxes(); render();
+};
+
+// image loading
+function loadFile(f){
+  if(!f||!f.type.startsWith('image/'))return;
+  const img=new Image();
+  img.onload=()=>{state.img=img; render();};
+  img.src=URL.createObjectURL(f);
+}
+const drop=document.getElementById('drop'), file=document.getElementById('file');
+drop.onclick=()=>file.click();
+file.onchange=e=>loadFile(e.target.files[0]);
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));
+document.getElementById('useSample').onclick=()=>{
+  const img=new Image(); img.onload=()=>{state.img=img; render();}; img.src='assets/sample.jpg';
+};
+
+// drag: boxes (move) or background (focal)
+let drag=null;
+function evtToOut(e){
+  const r=preview.getBoundingClientRect();
+  const sx=out.width/r.width, sy=out.height/r.height;
+  return {x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy};
+}
+preview.addEventListener('mousedown',e=>{
+  const p=evtToOut(e);
+  const hit=[...chipRects].reverse().find(r=>p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h);
+  if(hit){ drag={type:'box',idx:hit.idx,ox:p.x-state.chips[hit.idx].x,oy:p.y-state.chips[hit.idx].y}; }
+  else   { drag={type:'focal'}; setFocal(e); }
+  preview.classList.add('dragging');
+});
+function setFocal(e){
+  const r=preview.getBoundingClientRect();
+  state.fx=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+  state.fy=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height));
+  render();
+}
+window.addEventListener('mousemove',e=>{
+  if(!drag)return;
+  if(drag.type==='focal'){ setFocal(e); }
+  else { const p=evtToOut(e); const c=state.chips[drag.idx]; c.x=Math.round(p.x-drag.ox); c.y=Math.round(p.y-drag.oy); render(); }
+});
+window.addEventListener('mouseup',()=>{drag=null; preview.classList.remove('dragging');});
+
+// download
+document.getElementById('download').onclick=()=>{
+  render();
+  out.toBlob(b=>{
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(b); a.download=`dither-poster-${state.format.replace(':','x')}.png`; a.click();
+  },'image/png');
+};
+
+window.addEventListener('resize',render);
+
+// boot: wait for fonts so first paint is correct
+buildPalette(); buildBoxes();
+const fontLoads=[
+  "600 30px 'Geist Mono'","500 28px 'Geist Mono'",
+  "600 78px 'Geist'","500 37px 'Geist'","400 30px 'Geist Pixel'",
+].map(f=>document.fonts.load(f));
+Promise.all(fontLoads).then(()=>{fontsReady=true; render();});
+document.fonts.ready.then(render);
+render();
+</script>
+</body>
+</html>
