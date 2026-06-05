@@ -44,7 +44,7 @@
       var(--black);
     overflow:auto;}
   #preview{max-width:100%;max-height:100%;box-shadow:0 0 0 1px var(--grid);cursor:grab;
-    image-rendering:auto;}
+    image-rendering:auto;touch-action:none;}  /* touch-action:none → drag works on touch */
   #preview.dragging{cursor:grabbing;}
 
   .group{margin-bottom:20px;}
@@ -84,6 +84,17 @@
   select{flex:1;} .box .meta input{width:56px;}
   .ghost{width:100%;padding:9px;}
   .hint{color:var(--dim);font-size:11px;margin-top:6px;line-height:1.4;}
+
+  /* ---- Mobile: stack preview on top (sticky) + controls below ---- */
+  @media (max-width:820px){
+    body{height:auto;min-height:100%;}
+    header{position:sticky;top:0;z-index:20;}
+    main{flex-direction:column;min-height:0;}
+    .stage{order:1;overflow:visible;padding:14px;min-height:44vh;
+      position:sticky;top:51px;z-index:10;}
+    .controls{order:2;width:100%;border-right:none;border-top:1px solid var(--grid);
+      overflow:visible;max-height:none;}
+  }
 </style>
 </head>
 <body>
@@ -414,12 +425,13 @@ function evtToOut(e){
   const sx=out.width/r.width, sy=out.height/r.height;
   return {x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy};
 }
-preview.addEventListener('mousedown',e=>{
+preview.addEventListener('pointerdown',e=>{               // pointer = mouse + touch + pen
   const p=evtToOut(e);
   const hit=[...chipRects].reverse().find(r=>p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h);
   if(hit){ drag={type:'box',idx:hit.idx,ox:p.x-state.chips[hit.idx].x,oy:p.y-state.chips[hit.idx].y}; }
   else   { drag={type:'focal'}; setFocal(e); }
   preview.classList.add('dragging');
+  try{ preview.setPointerCapture(e.pointerId); }catch(_){}
 });
 function setFocal(e){
   const r=preview.getBoundingClientRect();
@@ -427,12 +439,12 @@ function setFocal(e){
   state.fy=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height));
   render();
 }
-window.addEventListener('mousemove',e=>{
+window.addEventListener('pointermove',e=>{
   if(!drag)return;
   if(drag.type==='focal'){ setFocal(e); }
   else { const p=evtToOut(e); const c=state.chips[drag.idx]; c.x=Math.round(p.x-drag.ox); c.y=Math.round(p.y-drag.oy); render(); }
 });
-window.addEventListener('mouseup',()=>{drag=null; preview.classList.remove('dragging');});
+window.addEventListener('pointerup',()=>{drag=null; preview.classList.remove('dragging');});
 
 // download
 document.getElementById('download').onclick=()=>{
