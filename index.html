@@ -47,6 +47,13 @@
     image-rendering:auto;touch-action:none;}  /* touch-action:none → drag works on touch */
   #preview.dragging{cursor:grabbing;}
 
+  /* dark scrollbars to match the app */
+  .controls,.stage{scrollbar-width:thin;scrollbar-color:var(--grid) var(--black);}
+  .controls::-webkit-scrollbar,.stage::-webkit-scrollbar{width:8px;height:8px;}
+  .controls::-webkit-scrollbar-track,.stage::-webkit-scrollbar-track{background:var(--black);}
+  .controls::-webkit-scrollbar-thumb,.stage::-webkit-scrollbar-thumb{background:var(--grid);border-radius:4px;}
+  .controls::-webkit-scrollbar-thumb:hover,.stage::-webkit-scrollbar-thumb:hover{background:var(--blue);}
+
   .group{margin-bottom:20px;}
   .group > label.h{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.12em;
     text-transform:uppercase;color:var(--dim);margin-bottom:9px;}
