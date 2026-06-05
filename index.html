@@ -263,7 +263,7 @@ function drawChips(){
       octx.fillStyle='rgba(20,20,20,0.34)'; octx.fillRect(chip.x,chip.y,bw,bh);
       octx.restore();
       octx.save(); roundRect(octx, chip.x, chip.y, bw, bh, state.radius);
-      octx.lineWidth=2; octx.strokeStyle='rgba(255,255,255,0.30)'; octx.stroke(); octx.restore();
+      octx.lineWidth=1; octx.strokeStyle='rgba(255,255,255,0.28)'; octx.stroke(); octx.restore();
       textCol='#ffffff';
     } else if(style==='black'){
       octx.fillStyle='#141414';
@@ -275,8 +275,14 @@ function drawChips(){
       textCol='#000000';
     }
     octx.fillStyle=textCol;
+    const align=chip.align||'left';
     let cy=chip.y+state.padY+asc;
-    for(const ln of lines){ octx.fillText(ln, chip.x+state.padX, cy); cy+=lineH+state.lineGap; }
+    lines.forEach((ln,li)=>{
+      let tx=chip.x+state.padX;                       // left
+      if(align==='center')     tx=chip.x+(bw-widths[li])/2;
+      else if(align==='right') tx=chip.x+bw-state.padX-widths[li];
+      octx.fillText(ln, tx, cy); cy+=lineH+state.lineGap;
+    });
     chipRects.push({x:chip.x,y:chip.y,w:bw,h:bh,idx});
   });
 }
@@ -336,6 +342,11 @@ function buildBoxes(){
           <option value="black">Black</option>
           <option value="glass">Glass</option>
         </select>
+        <select class="align">
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+        </select>
       </div>`;
     const ta=el.querySelector('textarea'); ta.value=chip.text;     // value, not innerHTML — no escaping needed
     ta.oninput=e=>{chip.text=e.target.value; render();};
@@ -347,6 +358,8 @@ function buildBoxes(){
     el.querySelector('.size').oninput=e=>{chip.size=+e.target.value||chip.size; render();};
     const stSel=el.querySelector('.style'); stSel.value=chip.style||'white';
     stSel.onchange=e=>{chip.style=e.target.value; render();};
+    const alSel=el.querySelector('.align'); alSel.value=chip.align||'left';
+    alSel.onchange=e=>{chip.align=e.target.value; render();};
     el.querySelector('.del').onclick=()=>{state.chips.splice(i,1); buildBoxes(); render();};
     wrap.appendChild(el);
   });
