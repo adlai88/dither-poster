@@ -55,7 +55,7 @@
   input[type=range]{flex:1;accent-color:var(--blue);}
   .val{width:34px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--text);}
 
-  .seg{display:flex;gap:6px;}
+  .seg{display:flex;gap:6px;flex-wrap:wrap;}
   .seg button, .swatches button, .ghost{font-family:var(--mono);font-size:12px;cursor:pointer;
     background:var(--black);color:var(--muted);border:1px solid var(--grid);border-radius:6px;
     padding:7px 10px;transition:.12s;}
@@ -78,7 +78,7 @@
   textarea{width:100%;background:var(--surface);color:var(--text);border:1px solid var(--grid);
     border-radius:6px;padding:8px;font-family:var(--sans);font-size:13px;resize:vertical;min-height:38px;}
   textarea:focus,select:focus{outline:none;border-color:var(--blue);}
-  .box .meta{display:flex;gap:6px;margin-top:8px;}
+  .box .meta{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
   select,.box .meta input{background:var(--surface);color:var(--text);border:1px solid var(--grid);
     border-radius:6px;padding:6px;font-family:var(--mono);font-size:11px;}
   select{flex:1;} .box .meta input{width:56px;}
@@ -88,7 +88,7 @@
 </head>
 <body>
 <header>
-  <div class="brand">(&gt;.&lt;) DITHER POSTER <span class="dim">· simmer</span></div>
+  <div class="brand">DITHER POSTER</div>
   <button class="dl" id="download">Download PNG</button>
 </header>
 <main>
@@ -107,6 +107,8 @@
         <button data-fmt="1:1" class="on">1:1</button>
         <button data-fmt="4:5">4:5</button>
         <button data-fmt="16:9">16:9</button>
+        <button data-fmt="banner">X banner</button>
+        <button data-fmt="article">X article</button>
       </div>
     </div>
 
@@ -141,9 +143,14 @@ const PALETTES = {
   green: {dark:[20,20,20],  light:[158,206,106], sw:'#9ece6a'},
   amber: {dark:[20,20,20],  light:[224,175,104], sw:'#e0af68'},
   mono:  {dark:[20,20,20],  light:[201,201,201], sw:'#c9c9c9'},
+  pink:  {dark:[20,20,20],  light:[247,118,142], sw:'#f7768e'},  // terminal-red / Simmer mark
 };
 const FAMILY = {sans:'Geist', mono:'Geist Mono', pixel:'Geist Pixel'};
-const FORMATS = {'1:1':[1080,1080], '4:5':[1080,1350], '16:9':[1600,900]};
+const FORMATS = {
+  '1:1':[1080,1080], '4:5':[1080,1350], '16:9':[1600,900],
+  'banner':[1500,500],   // X profile header (3:1)
+  'article':[1920,368],  // X article cover (5.2:1)
+};
 
 // ---- default referral template ----
 const state = {
@@ -160,6 +167,7 @@ const state = {
 
 const out = document.createElement('canvas');       // full-res render target
 const octx = out.getContext('2d');
+const bgSnap = document.createElement('canvas');     // bg-only snapshot (for glass chips)
 const preview = document.getElementById('preview');
 const pctx = preview.getContext('2d');
 let chipRects = [];                                  // for hit-testing
@@ -245,10 +253,28 @@ function drawChips(){
     const widths=lines.map(l=>octx.measureText(l).width);
     const tw=Math.max(...widths,0), th=lineH*lines.length+state.lineGap*(lines.length-1);
     const bw=tw+2*state.padX, bh=th+2*state.padY;
-    // chip
-    octx.fillStyle='#ffffff';
-    roundRect(octx, chip.x, chip.y, bw, bh, state.radius); octx.fill();
-    octx.fillStyle='#000000';
+    // chip styles: white | black | glass
+    const style=chip.style||'white';
+    let textCol='#000000';
+    if(style==='glass'){
+      octx.save();                                   // frosted: blurred bg + dark tint + light hairline
+      roundRect(octx, chip.x, chip.y, bw, bh, state.radius); octx.clip();
+      octx.filter='blur(14px)'; octx.drawImage(bgSnap,0,0); octx.filter='none';
+      octx.fillStyle='rgba(20,20,20,0.34)'; octx.fillRect(chip.x,chip.y,bw,bh);
+      octx.restore();
+      octx.save(); roundRect(octx, chip.x, chip.y, bw, bh, state.radius);
+      octx.lineWidth=2; octx.strokeStyle='rgba(255,255,255,0.30)'; octx.stroke(); octx.restore();
+      textCol='#ffffff';
+    } else if(style==='black'){
+      octx.fillStyle='#141414';
+      roundRect(octx, chip.x, chip.y, bw, bh, state.radius); octx.fill();
+      textCol='#ffffff';
+    } else {
+      octx.fillStyle='#ffffff';
+      roundRect(octx, chip.x, chip.y, bw, bh, state.radius); octx.fill();
+      textCol='#000000';
+    }
+    octx.fillStyle=textCol;
     let cy=chip.y+state.padY+asc;
     for(const ln of lines){ octx.fillText(ln, chip.x+state.padX, cy); cy+=lineH+state.lineGap; }
     chipRects.push({x:chip.x,y:chip.y,w:bw,h:bh,idx});
@@ -267,6 +293,7 @@ function render(){
   const [W,H]=FORMATS[state.format];
   out.width=W; out.height=H;
   buildBackground(W,H);
+  bgSnap.width=W; bgSnap.height=H; bgSnap.getContext('2d').drawImage(out,0,0);
   drawChips();
   // blit to preview scaled to fit stage
   const stage=preview.parentElement.getBoundingClientRect();
@@ -304,6 +331,11 @@ function buildBoxes(){
           <option value="600">SemiBold</option><option value="700">Bold</option>
         </select>
         <input class="size" type="number" min="8" max="200" title="size">
+        <select class="style">
+          <option value="white">White</option>
+          <option value="black">Black</option>
+          <option value="glass">Glass</option>
+        </select>
       </div>`;
     const ta=el.querySelector('textarea'); ta.value=chip.text;     // value, not innerHTML — no escaping needed
     ta.oninput=e=>{chip.text=e.target.value; render();};
@@ -313,6 +345,8 @@ function buildBoxes(){
     const wSel=el.querySelector('.weight'); wSel.value=String(chip.weight);
     wSel.onchange=e=>{chip.weight=+e.target.value; render();};
     el.querySelector('.size').oninput=e=>{chip.size=+e.target.value||chip.size; render();};
+    const stSel=el.querySelector('.style'); stSel.value=chip.style||'white';
+    stSel.onchange=e=>{chip.style=e.target.value; render();};
     el.querySelector('.del').onclick=()=>{state.chips.splice(i,1); buildBoxes(); render();};
     wrap.appendChild(el);
   });
