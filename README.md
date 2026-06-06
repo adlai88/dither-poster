@@ -45,12 +45,14 @@ placeholder, safe to redistribute.
 ## Adding to the kit
 
 - **Palette:** add an entry to `PALETTES` in `index.html` (`{dark:[r,g,b], light:[r,g,b], sw:'#hex'}`).
-- **Format:** add to `FORMATS` (e.g. an X Articles banner `[1920,368]`).
-- The Python equivalent (`dither_banner.py`, batch/CLI) lives alongside the design
-  exploration — useful for scripted/bulk generation.
+- **Format:** add to `FORMATS` (e.g. `[1920,368]`).
+- **Batch / headless:** not built. If it's ever needed, reuse this file's JS dither
+  engine (Node + `node-canvas`, or a Playwright script driving the page) — don't
+  re-port it. One source of truth.
 
 ## Not yet built (intentional v1 scope cap)
 
-- X Articles banner (1920×368) — needs a horizontal box layout, add as its own template
-- Accent-fill chips (palette-colored boxes) — white-only for now
-- Saved projects / templates gallery — out of scope; keep it one screen
+- Wide formats (X banner / X article) render, but reuse the vertical box stack — no
+  horizontal default layout (boxes clamp into bounds; reposition by hand).
+- Saved projects / templates gallery — out of scope; keep it one screen.
+- Animated export and an erase-to-background tool — parked until there's a need.
