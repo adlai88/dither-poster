@@ -332,17 +332,23 @@ function roundRect(ctx,x,y,w,h,r){
 }
 
 // ---------- render ----------
-let fontsReady=false;
+// render() = full (re-dither background + chips). renderChips() = cheap path that
+// reuses the cached dither (bgSnap) and only redraws chips — used for chip edits,
+// drag, grid toggles, and resize, where the background hasn't changed.
 function render(){
   const [W,H]=FORMATS[state.format];
   out.width=W; out.height=H;
   buildBackground(W,H);
   bgSnap.width=W; bgSnap.height=H; bgSnap.getContext('2d').drawImage(out,0,0);
+  renderChips();
+}
+function renderChips(){
+  const W=out.width, H=out.height;
+  octx.drawImage(bgSnap,0,0);                       // restore cached dither — no re-compute
   drawChips();
-  // blit to preview scaled to fit stage
   const stage=preview.parentElement.getBoundingClientRect();
   const scale=Math.min((stage.width-56)/W,(stage.height-56)/H,1);
-  preview.width=W; preview.height=H;
+  if(preview.width!==W){ preview.width=W; preview.height=H; }
   preview.style.width=(W*scale)+'px'; preview.style.height=(H*scale)+'px';
   pctx.drawImage(out,0,0);
   if(state.showGrid){                              // preview-only overlay — never in the export
@@ -395,18 +401,18 @@ function buildBoxes(){
         </select>
       </div>`;
     const ta=el.querySelector('textarea'); ta.value=chip.text;     // value, not innerHTML — no escaping needed
-    ta.oninput=e=>{chip.text=e.target.value; render();};
+    ta.oninput=e=>{chip.text=e.target.value; renderChips();};
     el.querySelector('.size').value=chip.size;
     const fontSel=el.querySelector('.font'); fontSel.value=chip.font;
-    fontSel.onchange=e=>{chip.font=e.target.value; render();};
+    fontSel.onchange=e=>{chip.font=e.target.value; renderChips();};
     const wSel=el.querySelector('.weight'); wSel.value=String(chip.weight);
-    wSel.onchange=e=>{chip.weight=+e.target.value; render();};
-    el.querySelector('.size').oninput=e=>{chip.size=+e.target.value||chip.size; render();};
+    wSel.onchange=e=>{chip.weight=+e.target.value; renderChips();};
+    el.querySelector('.size').oninput=e=>{chip.size=Math.max(8,+e.target.value||chip.size); renderChips();};
     const stSel=el.querySelector('.style'); stSel.value=chip.style||'white';
-    stSel.onchange=e=>{chip.style=e.target.value; render();};
+    stSel.onchange=e=>{chip.style=e.target.value; renderChips();};
     const alSel=el.querySelector('.align'); alSel.value=chip.align||'left';
-    alSel.onchange=e=>{chip.align=e.target.value; render();};
-    el.querySelector('.del').onclick=()=>{state.chips.splice(i,1); buildBoxes(); render();};
+    alSel.onchange=e=>{chip.align=e.target.value; renderChips();};
+    el.querySelector('.del').onclick=()=>{state.chips.splice(i,1); buildBoxes(); renderChips();};
     wrap.appendChild(el);
   });
 }
@@ -420,27 +426,32 @@ document.getElementById('format').onclick=e=>{
   if(e.target.dataset.fmt){
     state.format=e.target.dataset.fmt;
     [...e.currentTarget.children].forEach(b=>b.classList.toggle('on',b===e.target));
+    const [W,H]=FORMATS[state.format];              // pull chips into the new bounds so none get clipped from the export
+    state.chips.forEach(c=>{ c.x=Math.max(0,Math.min(c.x,W-40)); c.y=Math.max(0,Math.min(c.y,H-40)); });
     render();
   }
 };
 document.getElementById('addBox').onclick=()=>{
   state.chips.push({text:'New box', font:'sans', weight:600, size:40, x:state.margin, y:state.margin});
-  buildBoxes(); render();
+  buildBoxes(); renderChips();
 };
 
 // grid
 const snapBtn=document.getElementById('snapToggle');
 snapBtn.onclick=()=>{ state.snap=!state.snap; snapBtn.classList.toggle('on',state.snap); };
 const showBtn=document.getElementById('showToggle');
-showBtn.onclick=()=>{ state.showGrid=!state.showGrid; showBtn.classList.toggle('on',state.showGrid); render(); };
-document.getElementById('gridSize').oninput=e=>{ state.gridSize=Math.max(4,+e.target.value||40); render(); };
+showBtn.onclick=()=>{ state.showGrid=!state.showGrid; showBtn.classList.toggle('on',state.showGrid); renderChips(); };
+document.getElementById('gridSize').oninput=e=>{ state.gridSize=Math.max(4,+e.target.value||40); renderChips(); };
 
 // image loading
+let objUrl=null;
 function loadFile(f){
   if(!f||!f.type.startsWith('image/'))return;
   const img=new Image();
   img.onload=()=>{state.img=img; render();};
-  img.src=URL.createObjectURL(f);
+  if(objUrl) URL.revokeObjectURL(objUrl);          // free the previous image's blob
+  objUrl=URL.createObjectURL(f);
+  img.src=objUrl;
 }
 const drop=document.getElementById('drop'), file=document.getElementById('file');
 drop.onclick=()=>file.click();
@@ -484,7 +495,11 @@ window.addEventListener('pointermove',e=>{
       nx=Math.round(nx/state.gridSize)*state.gridSize;
       ny=Math.round(ny/state.gridSize)*state.gridSize;
     }
-    c.x=Math.round(nx); c.y=Math.round(ny); render();
+    // keep at least 24px of the box on-canvas so it can never be dragged out of reach
+    const r=chipRects.find(rr=>rr.idx===drag.idx), bw=r?r.w:48, bh=r?r.h:48;
+    nx=Math.max(24-bw, Math.min(nx, out.width-24));
+    ny=Math.max(24-bh, Math.min(ny, out.height-24));
+    c.x=Math.round(nx); c.y=Math.round(ny); renderChips();
   }
 });
 window.addEventListener('pointerup',()=>{drag=null; preview.classList.remove('dragging');});
@@ -493,12 +508,14 @@ window.addEventListener('pointerup',()=>{drag=null; preview.classList.remove('dr
 document.getElementById('download').onclick=()=>{
   render();
   out.toBlob(b=>{
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(b); a.download=`dither-poster-${state.format.replace(':','x')}.png`; a.click();
+    if(!b) return;                                   // toBlob can yield null (OOM / tainted)
+    const a=document.createElement('a'), u=URL.createObjectURL(b);
+    a.href=u; a.download=`dither-poster-${state.format.replace(':','x')}.png`; a.click();
+    setTimeout(()=>URL.revokeObjectURL(u),1000);     // free the PNG blob after the download starts
   },'image/png');
 };
 
-window.addEventListener('resize',render);
+window.addEventListener('resize',renderChips);       // resize only changes preview scale, not the dither
 
 // boot: wait for fonts so first paint is correct
 buildPalette(); buildBoxes();
@@ -506,7 +523,7 @@ const fontLoads=[
   "600 30px 'Geist Mono'","500 28px 'Geist Mono'",
   "600 78px 'Geist'","500 37px 'Geist'","400 30px 'Geist Pixel'",
 ].map(f=>document.fonts.load(f));
-Promise.all(fontLoads).then(()=>{fontsReady=true; render();});
+Promise.all(fontLoads).then(render);   // re-render once brand fonts are ready (correct metrics)
 document.fonts.ready.then(render);
 render();
 loadSample();   // open fully populated
