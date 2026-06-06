@@ -152,10 +152,19 @@
     </div>
 
     <div class="group">
+      <label class="h">Render</label>
+      <div class="seg" id="mode">
+        <button data-mode="dither" class="on">Dither</button>
+        <button data-mode="ascii">ASCII</button>
+      </div>
+    </div>
+
+    <div class="group">
       <label class="h">Image treatment</label>
       <div class="row"><span class="lbl">Zoom</span><input type="range" id="zoom" min="1" max="20" step="0.5" value="1"><span class="val" id="zoomV">1</span></div>
       <div class="row"><span class="lbl">Contrast</span><input type="range" id="contrast" min="0.6" max="2.2" step="0.05" value="1.5"><span class="val" id="contrastV">1.5</span></div>
-      <div class="row"><span class="lbl">Dither</span><input type="range" id="cell" min="1" max="5" step="1" value="2"><span class="val" id="cellV">2</span></div>
+      <div class="row" id="cellRow"><span class="lbl">Dither</span><input type="range" id="cell" min="1" max="5" step="1" value="2"><span class="val" id="cellV">2</span></div>
+      <div class="row" id="asciiRow" style="display:none"><span class="lbl">ASCII</span><input type="range" id="ascii" min="5" max="24" step="1" value="10"><span class="val" id="asciiV">10</span></div>
     </div>
 
     <div class="group">
@@ -200,6 +209,7 @@ const FORMATS = {
 // ---- default referral template ----
 const state = {
   img:null, format:'1:1', palette:'cream', zoom:1, contrast:1.5, cell:2, fx:0.5, fy:0.5,
+  mode:'dither', ascii:10,
   margin:64, padX:26, padY:16, radius:12, lineGap:4,
   snap:false, showGrid:false, gridSize:40,
   chips:[
@@ -218,8 +228,8 @@ const preview = document.getElementById('preview');
 const pctx = preview.getContext('2d');
 let chipRects = [];                                  // for hit-testing
 
-// ---------- dither pipeline (port of dither_banner.py) ----------
-function buildBackground(W, H){
+// ---------- shared: cover-crop (zoom/focal) + grayscale/contrast ----------
+function cropGray(W, H){
   const tmp = document.createElement('canvas'); tmp.width=W; tmp.height=H;
   const tctx = tmp.getContext('2d');
   if(state.img){
@@ -239,6 +249,13 @@ function buildBackground(W, H){
     fd[i]=fd[i+1]=fd[i+2]=g;                          // keep float-ish in 0..255 (clamped on read)
   }
   tctx.putImageData(full,0,0);
+  return tmp;
+}
+
+// ---------- dither pipeline (port of dither_banner.py) ----------
+function buildBackground(W, H){
+  if(state.mode==='ascii') return buildAscii(W,H);
+  const tmp = cropGray(W,H);
 
   // downscale by cell
   const cell=state.cell, sw=Math.max(1,Math.round(W/cell)), sh=Math.max(1,Math.round(H/cell));
@@ -265,6 +282,42 @@ function buildBackground(W, H){
   // nearest-neighbour upscale to full res
   octx.imageSmoothingEnabled=false;
   octx.drawImage(sc,0,0,sw,sh,0,0,W,H);
+}
+
+// ---------- ASCII pipeline ----------
+// Reuses cropGray, then samples one brightness value per character cell and maps
+// it to a glyph ramp. Columns/rows are derived independently from the mono glyph's
+// advance width and the font size, so the source is sampled into non-square cells
+// and the ASCII doesn't come out vertically stretched.
+function buildAscii(W, H){
+  const tmp = cropGray(W,H);
+  const {dark,light}=PALETTES[state.palette];
+  octx.fillStyle=`rgb(${dark[0]},${dark[1]},${dark[2]})`;
+  octx.fillRect(0,0,W,H);
+
+  const fs=state.ascii;                                 // glyph size in px (slider)
+  octx.font=`${fs}px ${FAMILY.mono}`;
+  octx.textBaseline='top';
+  const colW=octx.measureText('M').width || fs*0.6;     // mono advance width
+  const rowH=fs;                                        // line height
+  const cols=Math.max(1,Math.floor(W/colW)), rows=Math.max(1,Math.floor(H/rowH));
+
+  // one averaged sample per cell (cols x rows grid of non-square cells)
+  const sc=document.createElement('canvas'); sc.width=cols; sc.height=rows;
+  const sctx=sc.getContext('2d'); sctx.imageSmoothingEnabled=true;
+  sctx.drawImage(tmp,0,0,cols,rows);
+  const sd=sctx.getImageData(0,0,cols,rows).data;
+
+  const ramp=" .:-=+*#%@";                              // dark -> light
+  octx.fillStyle=`rgb(${light[0]},${light[1]},${light[2]})`;
+  for(let r=0;r<rows;r++){
+    let line='';
+    for(let cidx=0;cidx<cols;cidx++){
+      const v=sd[(r*cols+cidx)*4];                      // grayscale (channels equal)
+      line+=ramp[Math.min(ramp.length-1, Math.floor(v/256*ramp.length))];
+    }
+    octx.fillText(line, 0, r*rowH);                     // one fillText per row (uniform advance)
+  }
 }
 
 // ---------- chips ----------
@@ -433,8 +486,18 @@ function slider(id,key,fmt){
   const s=document.getElementById(id), v=document.getElementById(id+'V');
   s.oninput=()=>{state[key]=parseFloat(s.value); v.textContent=fmt?fmt(s.value):s.value; render();};
 }
-slider('zoom','zoom'); slider('contrast','contrast'); slider('cell','cell');
+slider('zoom','zoom'); slider('contrast','contrast'); slider('cell','cell'); slider('ascii','ascii');
 
+document.getElementById('mode').onclick=e=>{
+  if(e.target.dataset.mode){
+    state.mode=e.target.dataset.mode;
+    [...e.currentTarget.children].forEach(b=>b.classList.toggle('on',b===e.target));
+    const ascii=state.mode==='ascii';
+    document.getElementById('cellRow').style.display=ascii?'none':'';
+    document.getElementById('asciiRow').style.display=ascii?'':'none';
+    render();
+  }
+};
 document.getElementById('format').onclick=e=>{
   if(e.target.dataset.fmt){
     state.format=e.target.dataset.fmt;
