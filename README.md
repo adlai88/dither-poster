@@ -11,17 +11,17 @@ Use the hosted version above, or run it locally: open `index.html` in a browser
 (double-click works — no server, no install, works offline). Or serve the folder:
 `python3 -m http.server` then open `localhost:8000`.
 
-1. **Drop an image** (or click "Use sample image").
+1. **Drop an image** to replace the sample it opens with.
 2. **Drag on the preview** to set the focal point.
 3. Tune **Zoom / Contrast / Dither** size.
-4. Pick a **Format** (1:1, 4:5, 16:9) and **Palette**.
+4. Pick a **Format** (1:1, 4:5, 16:9, X banner, X article) and **Palette**.
 5. Edit the **Boxes** — text, font, weight, size. **Drag boxes** on the preview to
    reposition. Add/remove boxes as needed.
 6. **Download PNG.**
 
 ## The brand lock
 
-Defaults are set to generate poster assets for Simmer's brand (http://simmer.markets)
+Defaults are set to generate poster assets for Simmer's brand ([simmer.markets](https://simmer.markets)).
 
 Locked to:
 - **Fonts:** Geist Sans, Geist Mono, Geist Pixel (weights only — no other families)
