@@ -165,6 +165,15 @@
       <div class="row"><span class="lbl">Contrast</span><input type="range" id="contrast" min="0.6" max="2.2" step="0.05" value="1.5"><span class="val" id="contrastV">1.5</span></div>
       <div class="row" id="cellRow"><span class="lbl">Dither</span><input type="range" id="cell" min="1" max="5" step="1" value="2"><span class="val" id="cellV">2</span></div>
       <div class="row" id="asciiRow" style="display:none"><span class="lbl">ASCII</span><input type="range" id="ascii" min="5" max="24" step="1" value="10"><span class="val" id="asciiV">10</span></div>
+      <div class="row" id="charsetRow" style="display:none">
+        <span class="lbl">Charset</span>
+        <div class="seg" id="charset">
+          <button data-ramp="ascii" class="on">ASCII</button>
+          <button data-ramp="shades">Shades</button>
+          <button data-ramp="dots">Dots</button>
+          <button data-ramp="blocks">Blocks</button>
+        </div>
+      </div>
     </div>
 
     <div class="group">
@@ -205,11 +214,18 @@ const FORMATS = {
   'banner':[1500,500],   // X profile header (3:1)
   'article':[1920,768],  // X article cover (5:2)
 };
+// ASCII glyph ramps, each ordered dark -> light. Selected in ASCII mode.
+const RAMPS = {
+  ascii:  ' .:-=+*#%@',
+  shades: ' ░▒▓█',          //  ░▒▓█
+  dots:   ' .·•●',               //  .·•●
+  blocks: ' ▁▂▃▄▅▆▇█',  //  ▁▂▃▄▅▆▇█
+};
 
 // ---- default referral template ----
 const state = {
   img:null, format:'1:1', palette:'cream', zoom:1, contrast:1.5, cell:2, fx:0.5, fy:0.5,
-  mode:'dither', ascii:10,
+  mode:'dither', ascii:10, ramp:'ascii',
   margin:64, padX:26, padY:16, radius:12, lineGap:4,
   snap:false, showGrid:false, gridSize:40,
   chips:[
@@ -308,16 +324,19 @@ function buildAscii(W, H){
   sctx.drawImage(tmp,0,0,cols,rows);
   const sd=sctx.getImageData(0,0,cols,rows).data;
 
-  const ramp=" .:-=+*#%@";                              // dark -> light
-  octx.fillStyle=`rgb(${light[0]},${light[1]},${light[2]})`;
+  const ramp=RAMPS[state.ramp]||RAMPS.ascii;            // dark -> light
+  octx.textAlign='center';                              // pin each glyph to its cell center so non-ASCII
+  octx.fillStyle=`rgb(${light[0]},${light[1]},${light[2]})`;   // sets (shades/blocks) stay grid-aligned even on font fallback
+  const half=colW/2;
   for(let r=0;r<rows;r++){
-    let line='';
+    const y=r*rowH;
     for(let cidx=0;cidx<cols;cidx++){
       const v=sd[(r*cols+cidx)*4];                      // grayscale (channels equal)
-      line+=ramp[Math.min(ramp.length-1, Math.floor(v/256*ramp.length))];
+      const g=ramp[Math.min(ramp.length-1, Math.floor(v/256*ramp.length))];
+      if(g!==' ') octx.fillText(g, cidx*colW+half, y);  // skip blanks (most cells in light areas)
     }
-    octx.fillText(line, 0, r*rowH);                     // one fillText per row (uniform advance)
   }
+  octx.textAlign='start';                               // restore for chip drawing
 }
 
 // ---------- chips ----------
@@ -495,6 +514,14 @@ document.getElementById('mode').onclick=e=>{
     const ascii=state.mode==='ascii';
     document.getElementById('cellRow').style.display=ascii?'none':'';
     document.getElementById('asciiRow').style.display=ascii?'':'none';
+    document.getElementById('charsetRow').style.display=ascii?'':'none';
+    render();
+  }
+};
+document.getElementById('charset').onclick=e=>{
+  if(e.target.dataset.ramp){
+    state.ramp=e.target.dataset.ramp;
+    [...e.currentTarget.children].forEach(b=>b.classList.toggle('on',b===e.target));
     render();
   }
 };
