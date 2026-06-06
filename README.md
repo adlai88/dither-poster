@@ -41,7 +41,7 @@ placeholder, safe to redistribute.
 ## Adding to the kit
 
 - **Palette:** add an entry to `PALETTES` in `index.html` (`{dark:[r,g,b], light:[r,g,b], sw:'#hex'}`).
-- **Format:** add to `FORMATS` (e.g. `[1920,368]`).
+- **Format:** add to `FORMATS` (e.g. `[1920,768]`).
 - **Batch / headless:** not built. If it's ever needed, reuse this file's JS dither
   engine (Node + `node-canvas`, or a Playwright script driving the page) — don't
   re-port it. One source of truth.
