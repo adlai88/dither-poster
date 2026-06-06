@@ -70,6 +70,7 @@
   .numin{background:var(--black);color:var(--text);border:1px solid var(--grid);border-radius:6px;
     padding:7px 8px;font-family:var(--mono);font-size:12px;width:64px;}
   .numin:focus{outline:none;border-color:var(--blue);}
+  .unit{align-self:center;color:var(--dim);font-family:var(--mono);font-size:12px;}
   .seg button:hover,.ghost:hover{border-color:var(--border);color:var(--text);}
 
   .swatches{display:flex;gap:8px;}
@@ -147,10 +148,11 @@
     <div class="group">
       <label class="h">Grid</label>
       <div class="seg">
-        <button id="snapToggle">Snap</button>
         <button id="showToggle">Show grid</button>
+        <button id="snapToggle">Snap</button>
+        <input class="numin" id="gridSize" type="number" value="40" min="4" max="240" title="grid size (px)">
+        <span class="unit">px</span>
       </div>
-      <div class="row" style="margin-top:9px"><span class="lbl">Size</span><input class="numin" id="gridSize" type="number" value="40" min="4" max="240"><span class="val">px</span></div>
       <div class="hint">Hold ⌘/Alt while dragging to bypass snap. The grid never appears in the export.</div>
     </div>
 
