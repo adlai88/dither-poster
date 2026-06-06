@@ -67,6 +67,9 @@
     background:var(--black);color:var(--muted);border:1px solid var(--grid);border-radius:6px;
     padding:7px 10px;transition:.12s;}
   .seg button.on{border-color:var(--blue);color:var(--text);}
+  .numin{background:var(--black);color:var(--text);border:1px solid var(--grid);border-radius:6px;
+    padding:7px 8px;font-family:var(--mono);font-size:12px;width:64px;}
+  .numin:focus{outline:none;border-color:var(--blue);}
   .seg button:hover,.ghost:hover{border-color:var(--border);color:var(--text);}
 
   .swatches{display:flex;gap:8px;}
@@ -142,6 +145,16 @@
     </div>
 
     <div class="group">
+      <label class="h">Grid</label>
+      <div class="seg">
+        <button id="snapToggle">Snap</button>
+        <button id="showToggle">Show grid</button>
+        <input class="numin" id="gridSize" type="number" value="40" min="4" max="240" title="grid size (px)">
+      </div>
+      <div class="hint">Off by default. Hold ⌘/Alt while dragging to bypass snap. The grid never appears in the export.</div>
+    </div>
+
+    <div class="group">
       <label class="h">Boxes</label>
       <div id="boxes"></div>
       <button class="ghost" id="addBox">+ add box</button>
@@ -173,6 +186,7 @@ const FORMATS = {
 const state = {
   img:null, format:'1:1', palette:'cream', zoom:6, contrast:1.3, cell:2, fx:0.5, fy:0.5,
   margin:64, padX:26, padY:16, radius:12, lineGap:4,
+  snap:false, showGrid:false, gridSize:40,
   chips:[
     {text:'(>.<) SIMMER', font:'mono', weight:600, size:30, x:64, y:64},
     {text:'The referral\nprogram is live', font:'sans', weight:600, size:78, x:64, y:150},
@@ -329,6 +343,13 @@ function render(){
   preview.width=W; preview.height=H;
   preview.style.width=(W*scale)+'px'; preview.style.height=(H*scale)+'px';
   pctx.drawImage(out,0,0);
+  if(state.showGrid){                              // preview-only overlay — never in the export
+    pctx.save();
+    pctx.strokeStyle='rgba(122,162,247,0.28)'; pctx.lineWidth=1;
+    for(let x=state.gridSize;x<W;x+=state.gridSize){ pctx.beginPath(); pctx.moveTo(x+0.5,0); pctx.lineTo(x+0.5,H); pctx.stroke(); }
+    for(let y=state.gridSize;y<H;y+=state.gridSize){ pctx.beginPath(); pctx.moveTo(0,y+0.5); pctx.lineTo(W,y+0.5); pctx.stroke(); }
+    pctx.restore();
+  }
 }
 
 // ---------- UI wiring ----------
@@ -405,6 +426,13 @@ document.getElementById('addBox').onclick=()=>{
   buildBoxes(); render();
 };
 
+// grid
+const snapBtn=document.getElementById('snapToggle');
+snapBtn.onclick=()=>{ state.snap=!state.snap; snapBtn.classList.toggle('on',state.snap); };
+const showBtn=document.getElementById('showToggle');
+showBtn.onclick=()=>{ state.showGrid=!state.showGrid; showBtn.classList.toggle('on',state.showGrid); render(); };
+document.getElementById('gridSize').oninput=e=>{ state.gridSize=Math.max(4,+e.target.value||40); render(); };
+
 // image loading
 function loadFile(f){
   if(!f||!f.type.startsWith('image/'))return;
@@ -447,7 +475,15 @@ function setFocal(e){
 window.addEventListener('pointermove',e=>{
   if(!drag)return;
   if(drag.type==='focal'){ setFocal(e); }
-  else { const p=evtToOut(e); const c=state.chips[drag.idx]; c.x=Math.round(p.x-drag.ox); c.y=Math.round(p.y-drag.oy); render(); }
+  else {
+    const p=evtToOut(e); const c=state.chips[drag.idx];
+    let nx=p.x-drag.ox, ny=p.y-drag.oy;
+    if(state.snap && !(e.metaKey||e.altKey)){       // ⌘/Alt held = bypass snap for this move
+      nx=Math.round(nx/state.gridSize)*state.gridSize;
+      ny=Math.round(ny/state.gridSize)*state.gridSize;
+    }
+    c.x=Math.round(nx); c.y=Math.round(ny); render();
+  }
 });
 window.addEventListener('pointerup',()=>{drag=null; preview.classList.remove('dragging');});
 
