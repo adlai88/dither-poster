@@ -151,7 +151,7 @@
         <button id="showToggle">Show grid</button>
       </div>
       <div class="row" style="margin-top:9px"><span class="lbl">Size</span><input class="numin" id="gridSize" type="number" value="40" min="4" max="240"><span class="val">px</span></div>
-      <div class="hint">Off by default. Hold ⌘/Alt while dragging to bypass snap. The grid never appears in the export.</div>
+      <div class="hint">Hold ⌘/Alt while dragging to bypass snap. The grid never appears in the export.</div>
     </div>
 
     <div class="group">
@@ -345,7 +345,7 @@ function render(){
   pctx.drawImage(out,0,0);
   if(state.showGrid){                              // preview-only overlay — never in the export
     pctx.save();
-    pctx.strokeStyle='rgba(122,162,247,0.55)'; pctx.lineWidth=1.5;
+    pctx.strokeStyle='rgba(255,38,58,0.9)'; pctx.lineWidth=1.5;   // fluorescent red — conventional layout-grid color
     for(let x=state.gridSize;x<W;x+=state.gridSize){ pctx.beginPath(); pctx.moveTo(x+0.5,0); pctx.lineTo(x+0.5,H); pctx.stroke(); }
     for(let y=state.gridSize;y<H;y+=state.gridSize){ pctx.beginPath(); pctx.moveTo(0,y+0.5); pctx.lineTo(W,y+0.5); pctx.stroke(); }
     pctx.restore();
