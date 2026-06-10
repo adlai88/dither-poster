@@ -156,13 +156,15 @@
       <div class="seg" id="mode">
         <button data-mode="dither" class="on">Dither</button>
         <button data-mode="ascii">ASCII</button>
+        <button data-mode="duotone">Duotone</button>
+        <button data-mode="none">None</button>
       </div>
     </div>
 
     <div class="group">
       <label class="h">Image treatment</label>
       <div class="row"><span class="lbl">Zoom</span><input type="range" id="zoom" min="1" max="20" step="0.5" value="1"><span class="val" id="zoomV">1</span></div>
-      <div class="row"><span class="lbl">Contrast</span><input type="range" id="contrast" min="0.6" max="2.2" step="0.05" value="1.5"><span class="val" id="contrastV">1.5</span></div>
+      <div class="row" id="contrastRow"><span class="lbl">Contrast</span><input type="range" id="contrast" min="0.6" max="2.2" step="0.05" value="1.5"><span class="val" id="contrastV">1.5</span></div>
       <div class="row" id="cellRow"><span class="lbl">Dither</span><input type="range" id="cell" min="1" max="5" step="1" value="2"><span class="val" id="cellV">2</span></div>
       <div class="row" id="asciiRow" style="display:none"><span class="lbl">ASCII</span><input type="range" id="ascii" min="5" max="24" step="1" value="10"><span class="val" id="asciiV">10</span></div>
       <div class="row" id="charsetRow" style="display:none">
@@ -244,8 +246,8 @@ const preview = document.getElementById('preview');
 const pctx = preview.getContext('2d');
 let chipRects = [];                                  // for hit-testing
 
-// ---------- shared: cover-crop (zoom/focal) + grayscale/contrast ----------
-function cropGray(W, H){
+// ---------- shared: cover-crop (zoom/focal), full color ----------
+function cropColor(W, H){
   const tmp = document.createElement('canvas'); tmp.width=W; tmp.height=H;
   const tctx = tmp.getContext('2d');
   if(state.img){
@@ -256,6 +258,13 @@ function cropGray(W, H){
     const top =Math.max(0,Math.min((dh-H)*state.fy, dh-H));
     tctx.drawImage(state.img, -left, -top, dw, dh);
   } else { tctx.fillStyle='#808080'; tctx.fillRect(0,0,W,H); }
+  return tmp;
+}
+
+// ---------- shared: cover-crop + grayscale/contrast ----------
+function cropGray(W, H){
+  const tmp = cropColor(W,H);
+  const tctx = tmp.getContext('2d');
 
   // grayscale + contrast at full res
   const full=tctx.getImageData(0,0,W,H), fd=full.data, c=state.contrast;
@@ -271,6 +280,8 @@ function cropGray(W, H){
 // ---------- dither pipeline (port of dither_banner.py) ----------
 function buildBackground(W, H){
   if(state.mode==='ascii') return buildAscii(W,H);
+  if(state.mode==='duotone') return buildDuotone(W,H);
+  if(state.mode==='none'){ octx.imageSmoothingEnabled=true; octx.drawImage(cropColor(W,H),0,0); return; }
   const tmp = cropGray(W,H);
 
   // downscale by cell
@@ -298,6 +309,24 @@ function buildBackground(W, H){
   // nearest-neighbour upscale to full res
   octx.imageSmoothingEnabled=false;
   octx.drawImage(sc,0,0,sw,sh,0,0,W,H);
+}
+
+// ---------- duotone pipeline ----------
+// Smooth version of the dither look: grayscale + contrast, then each pixel's
+// brightness interpolates between the palette's dark and light colors. No dithering.
+function buildDuotone(W, H){
+  const tmp=cropGray(W,H), tctx=tmp.getContext('2d');
+  const id=tctx.getImageData(0,0,W,H), d=id.data;
+  const {dark,light}=PALETTES[state.palette];
+  for(let i=0;i<d.length;i+=4){
+    const t=d[i]/255;
+    d[i]  =dark[0]+(light[0]-dark[0])*t;
+    d[i+1]=dark[1]+(light[1]-dark[1])*t;
+    d[i+2]=dark[2]+(light[2]-dark[2])*t;
+  }
+  tctx.putImageData(id,0,0);
+  octx.imageSmoothingEnabled=true;
+  octx.drawImage(tmp,0,0);
 }
 
 // ---------- ASCII pipeline ----------
@@ -511,10 +540,11 @@ document.getElementById('mode').onclick=e=>{
   if(e.target.dataset.mode){
     state.mode=e.target.dataset.mode;
     [...e.currentTarget.children].forEach(b=>b.classList.toggle('on',b===e.target));
-    const ascii=state.mode==='ascii';
-    document.getElementById('cellRow').style.display=ascii?'none':'';
-    document.getElementById('asciiRow').style.display=ascii?'':'none';
-    document.getElementById('charsetRow').style.display=ascii?'':'none';
+    const m=state.mode;
+    document.getElementById('cellRow').style.display    = m==='dither' ? '' : 'none';
+    document.getElementById('asciiRow').style.display   = m==='ascii'  ? '' : 'none';
+    document.getElementById('charsetRow').style.display = m==='ascii'  ? '' : 'none';
+    document.getElementById('contrastRow').style.display= m==='none'   ? 'none' : '';  // None = untreated image
     render();
   }
 };
